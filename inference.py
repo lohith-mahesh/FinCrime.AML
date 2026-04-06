@@ -36,9 +36,14 @@ IMPORTANT: Transactions are sorted chronologically by date. Illicit transactions
 }
 """
 
-def log_start(t, e, m): print(f"[START] task={t} env={e} model={m}", flush=True)
-def log_step(s, a, r, d, e): print(f"[STEP] step={s} action={a} reward={r:.2f} done={str(d).lower()} error={e or 'null'}", flush=True)
-def log_end(s, st, sc, r): print(f"[END] success={str(s).lower()} steps={st} score={sc:.2f} rewards={','.join(f'{x:.2f}' for x in r)}", flush=True)
+def log_start(t, e, m): 
+    print(f"[START] task={t} env={e} model={m}", flush=True)
+
+def log_step(s, a_str, r, d, e): 
+    print(f"[STEP] step={s} action={a_str} reward={r:.2f} done={str(d).lower()} error={e or 'null'}", flush=True)
+
+def log_end(s, st, sc, r): 
+    print(f"[END] success={str(s).lower()} steps={st} score={sc:.3f} rewards={','.join(f'{x:.2f}' for x in r)}", flush=True)
 
 def get_model_action(client, step, last_obs, history) -> AMLAction:
     h_str = "\n".join(history[-15:]) if history else "Start"
@@ -54,7 +59,7 @@ def get_model_action(client, step, last_obs, history) -> AMLAction:
             response_format={"type": "json_object"}
         )
         data = json.loads(res.choices[0].message.content)
-
+        
         if not data.get("violation_category") or data["violation_category"] == "null":
             data["violation_category"] = "NONE"
         if data.get("complicit_account_ids") is None:
@@ -88,8 +93,10 @@ async def main():
                 
             rewards.append(reward)
             steps = step
-            
-            log_step(step, action.model_dump_json(), reward, done, None)
+
+            target_str = action.account_id or action.search_name or "null"
+            action_log_str = f"{action.command}('{target_str}')"
+            log_step(step, action_log_str, reward, done, None)
             
             db_snippet = obs.database_response.replace('\n', ' | ')[:150]
             target = action.account_id or action.search_name
