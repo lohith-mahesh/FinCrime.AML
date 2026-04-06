@@ -74,16 +74,21 @@ class AMLEnv(Environment):
         task_score = 0.0
         
         sig = f"{action.command}_{action.account_id}_{action.search_name}_{action.page}"
+        gt = self.db_ground_truth.get(self.active_task, {})
+        
+        valid_targets = set(gt.get("chain", []))
+        if gt.get("target"):
+            valid_targets.add(gt.get("target"))
         
         if sig in self.history and action.command not in ["escalate_alert", "clear_alert"]:
-            reward -= 0.3
+            reward -= 0.15
             db_resp = "DUPLICATE QUERY. Proceed to next step or escalate/clear."
         else:
             if action.command not in ["escalate_alert", "clear_alert"]:
                 self.history.add(sig)
                 
             if action.command in ["query_account", "query_transactions"]:
-                if action.account_id in self.discovered_network:
+                if action.account_id in valid_targets:
                     if action.command == "query_transactions" and action.account_id not in self.queried_transactions:
                         reward += 0.15
                     elif action.command == "query_account" and action.account_id not in self.queried_accounts:
@@ -95,6 +100,7 @@ class AMLEnv(Environment):
                     self.evidence_log.append(f"TX_RECORD:{action.account_id}")
                         
                 txs = self.db_transactions.get(action.account_id, [])
+
                 txs.sort(key=lambda x: x['date'], reverse=True)
                 
                 for t in txs:
@@ -123,12 +129,16 @@ class AMLEnv(Environment):
             
             elif action.command == "search_sanctions":
                 query_val = action.search_name or action.account_id or "unknown"
-                if query_val not in self.queried_sanctions:
+                
+                is_new_query = query_val not in self.queried_sanctions
+                
+                if is_new_query:
                     self.queried_sanctions.add(query_val)
                     self.evidence_log.append(f"SANCTION_RECORD:{query_val}")
                         
                 m = [s for s in self.db_sanctions if action.search_name and action.search_name.lower() in s["name"].lower()]
-                if m and query_val not in self.queried_sanctions:
+                
+                if m and is_new_query:
                     reward += 0.10
                 db_resp = json.dumps(m) if m else "No match"
             
@@ -181,12 +191,12 @@ class AMLEnv(Environment):
                 if target not in self.queried_transactions:
                     return 0.0
                 
-                dates_found = sum(1 for d in evasion_dates if d in action.rationale)
+                dates_found = sum(1 for d in evasion_dates if d in (action.rationale or ""))
                 
                 if target == action.account_id or target in action.complicit_account_ids:
                     if dates_found >= 2:
                         return 1.0
-                    return 0.5
+                    return 0.5 
                 return 0.0
             return 0.0
             
