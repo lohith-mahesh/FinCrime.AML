@@ -9,8 +9,6 @@ RUN uv pip install --system .
 
 COPY . .
 
-RUN python data_generator.py
-
 RUN useradd -m -u 1000 user
 USER user
 
