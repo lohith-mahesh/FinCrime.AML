@@ -70,3 +70,14 @@ pip install -r requirements.txt
 export HF_TOKEN="your_api_key"
 export AML_TASK="shell_company_layering" # Options: detect_structuring, false_positive_sanctions
 python3 inference.py
+```
+### Automated Submission Validation
+
+To test container compatibility and parser compliance prior to final evaluation:
+```bash
+chmod +x validate-submission.sh
+./validate-submission.sh https://<YOUR-SPACE-NAME>.hf.space .
+```
+### Logging and Parsing Compatibility
+
+Standard output logging adheres strictly to benchmark parser expectations. Action strings are converted from JSON to safe functional formats (e.g., query_transactions('ACC-1030')), and final scores are consistently formatted to three decimal places (score=1.000) to ensure 100% compatibility with regex-based automated judges.
