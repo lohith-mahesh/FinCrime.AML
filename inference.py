@@ -3,12 +3,15 @@ import os
 import json
 from openai import OpenAI
 from models import AMLAction, ViolationCategory
-from env import AMLEnv
+
+from openenv.client import RemoteEnvironment
 
 API_KEY = os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
 TASK_NAME = os.getenv("AML_TASK", "false_positive_sanctions")
+
+ENV_URL = os.getenv("ENV_URL", "http://localhost:8000") 
 
 SYSTEM_PROMPT = """
 You are a Lead AML Investigator. Your goal is to solve the alert efficiently.
@@ -40,7 +43,7 @@ def log_start(t, e, m):
     print(f"[START] task={t} env={e} model={m}", flush=True)
 
 def log_step(s, a_str, r, d, e): 
-    print(f"[STEP] step={s} action={a_str} reward={r:.2f} done={str(d).lower()} error={e or 'null'}", flush=True)
+    print(f"[STEP]  step={s} action={a_str} reward={r:.2f} done={str(d).lower()} error={e or 'null'}", flush=True)
 
 def log_end(s, st, sc, r): 
     print(f"[END] success={str(s).lower()} steps={st} score={sc:.3f} rewards={','.join(f'{x:.2f}' for x in r)}", flush=True)
@@ -75,7 +78,9 @@ def get_model_action(client, step, last_obs, history) -> AMLAction:
 
 async def main():
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    env = AMLEnv()
+    
+    env = RemoteEnvironment(url=ENV_URL)
+    
     history, rewards = [], []
     steps = 0
     final_task_score = 0.0
