@@ -1,0 +1,16 @@
+name: HF Space Keep-Alive Ping
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows you to trigger it manually from the GitHub UI
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping OpenEnv Reset Endpoint
+        run: |
+          curl -X POST "https://lohithmahesh-fincrime-aml.hf.space/reset" \
+          -H "Content-Type: application/json" \
+          -d '{"task_name": "false_positive_sanctions"}' \
+          --max-time 60
