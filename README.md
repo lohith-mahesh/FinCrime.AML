@@ -81,3 +81,9 @@ chmod +x validate-submission.sh
 ### Logging and Parsing Compatibility
 
 Standard output logging adheres strictly to benchmark parser expectations. Action strings are converted from JSON to safe functional formats (e.g., query_transactions('ACC-1030')), and final scores are consistently formatted to three decimal places (score=1.000) to ensure 100% compatibility with regex-based automated judges.
+
+## Baseline Evaluation Scores
+Using the `llama-3.3-70b-versatile` model as our baseline agent, the environment yielded the following reproducible scores:
+* **Task 1 (Detect Structuring):** 1.000 (Success in 15 steps)
+* **Task 2 (Shell Company Layering):** 0.750 (Partial success in 8 steps)
+* **Task 3 (False Positive Sanctions):** 1.000 (Success in 3 steps)
