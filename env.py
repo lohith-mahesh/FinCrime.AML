@@ -6,11 +6,10 @@ from openenv.core.env_server import Environment
 from data_generator import generate_data
 
 class AMLEnv(Environment):
-    SUPPORTS_CONCURRENT_SESSIONS = True
+    SUPPORTS_CONCURRENT_SESSIONS = False
 
     def __init__(self):
         super().__init__()
-        self.active_task = os.getenv("AML_TASK", "false_positive_sanctions")
         self.history = set()
         self.queried_accounts = set()
         self.queried_sanctions = set()
@@ -22,9 +21,10 @@ class AMLEnv(Environment):
         self.db_transactions = {}
         self.db_sanctions = []
         self.db_ground_truth = {}
-
-    def reset(self) -> AMLObservation:
         self.active_task = os.getenv("AML_TASK", "false_positive_sanctions")
+
+    def reset(self, **kwargs) -> AMLObservation:
+        self.active_task = kwargs.get("task_name", os.getenv("AML_TASK", "false_positive_sanctions"))
         self.history = set()
         self.queried_accounts = set()
         self.queried_sanctions = set()
@@ -100,7 +100,6 @@ class AMLEnv(Environment):
                     self.evidence_log.append(f"TX_RECORD:{action.account_id}")
                         
                 txs = self.db_transactions.get(action.account_id, [])
-
                 txs.sort(key=lambda x: x['date'], reverse=True)
                 
                 for t in txs:
@@ -129,7 +128,6 @@ class AMLEnv(Environment):
             
             elif action.command == "search_sanctions":
                 query_val = action.search_name or action.account_id or "unknown"
-                
                 is_new_query = query_val not in self.queried_sanctions
                 
                 if is_new_query:
