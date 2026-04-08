@@ -9,7 +9,8 @@ from env import AMLEnv
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY") or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
-TASK_NAME = os.getenv("AML_TASK", "false_positive_sanctions")
+
+TASKS = ["false_positive_sanctions", "detect_structuring", "shell_company_layering"]
 
 SYSTEM_PROMPT = """
 You are a Lead AML Investigator. Your goal is to solve the alert efficiently.
@@ -41,10 +42,12 @@ def log_start(t, e, m):
     print(f"[START] task={t} env={e} model={m}", flush=True)
 
 def log_step(s, a_str, r, d, e): 
-    print(f"[STEP] step={s} action={a_str} reward={r:.2f} done={str(d).lower()} error={e or 'null'}", flush=True)
+    err_val = e if e else "null"
+    err_val = str(err_val).replace("\n", " ")
+    print(f"[STEP] step={s} action={a_str} reward={r:.2f} done={str(d).lower()} error={err_val}", flush=True)
 
 def log_end(s, st, sc, r): 
-    print(f"[END] success={str(s).lower()} steps={st} score={sc:.2f} rewards={','.join(f'{x:.2f}' for x in r)}", flush=True)
+    print(f"[END] success={str(s).lower()} steps={st} score={sc:.3f} rewards={','.join(f'{x:.2f}' for x in r)}", flush=True)
 
 def get_model_action(client, step, last_obs, history) -> AMLAction:
     h_str = "\n".join(history[-15:]) if history else "Start"
@@ -103,39 +106,39 @@ def get_model_action(client, step, last_obs, history) -> AMLAction:
 async def main():
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     env = AMLEnv()
-    history, rewards = [], []
-    steps = 0
-    final_task_score = 0.0
     
-    log_start(TASK_NAME, "aml_fincrime_investigator", MODEL_NAME)
-    
-    try:
-        obs = env.reset(task_name=TASK_NAME)
-        for step in range(1, 16):
-            action = get_model_action(client, step, obs.model_dump_json(), history)
-            obs, reward, done, info = env.step(action)
-            
-            if "task_score" in info and info["task_score"] > 0:
-                final_task_score = info["task_score"]
+    for task_name in TASKS:
+        history, rewards = [], []
+        steps = 0
+        final_task_score = 0.01 
+        
+        log_start(task_name, "aml_fincrime_investigator", MODEL_NAME)
+        
+        try:
+            obs = env.reset(task_id=task_name)
+            for step in range(1, 16):
+                action = get_model_action(client, step, obs.model_dump_json(), history)
+                obs, reward, done, info = env.step(action)
                 
-            rewards.append(reward)
-            steps = step
+                rewards.append(reward)
+                steps = step
 
-            target_str = action.account_id or action.search_name or "null"
-            action_log_str = f"{action.command}('{target_str}')"
-            
-            err_msg = action.rationale if action.account_id == "ERROR" else None
-            log_step(step, action_log_str, reward, done, err_msg)
-            
-            db_snippet = obs.database_response.replace('\n', ' | ')[:150]
-            target = action.account_id or action.search_name
-            history.append(f"Step {step}: {action.command} on {target} (Page {action.page}) -> Found: {db_snippet}")
-            
-            if done:
-                break
-    finally:
-        is_success = final_task_score >= 0.1
-        log_end(is_success, steps, final_task_score, rewards)
+                target_str = action.account_id or action.search_name or "null"
+                action_log_str = f"{action.command}('{target_str}')"
+                
+                err_msg = action.rationale if action.account_id == "ERROR" else None
+                log_step(step, action_log_str, reward, done, err_msg)
+                
+                db_snippet = obs.database_response.replace('\n', ' | ')[:150]
+                target = action.account_id or action.search_name
+                history.append(f"Step {step}: {action.command} on {target} (Page {action.page}) -> Found: {db_snippet}")
+                
+                if done:
+                    final_task_score = info.get("task_score", 0.01)
+                    break
+        finally:
+            is_success = final_task_score >= 0.1
+            log_end(is_success, steps, final_task_score, rewards)
 
 if __name__ == "__main__":
     asyncio.run(main())
