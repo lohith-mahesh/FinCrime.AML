@@ -71,7 +71,7 @@ class AMLEnv(Environment):
         reward = -0.05
         done = False
         db_resp = ""
-        task_score = 0.0
+        task_score = 0.01
         
         sig = f"{action.command}_{action.account_id}_{action.search_name}_{action.page}"
         gt = self.db_ground_truth.get(self.active_task, {})
@@ -147,6 +147,10 @@ class AMLEnv(Environment):
 
         if self.step_count >= 15:
             done = True
+            if task_score == 0.01:
+                task_score = self._grade_task(action)
+
+        safe_task_score = max(0.01, min(0.99, float(task_score)))
 
         obs = AMLObservation(
             alert_id=self.state_data["alert_id"], 
@@ -157,7 +161,7 @@ class AMLEnv(Environment):
             reward=float(reward), 
             done=done
         )
-        return obs, float(reward), done, {"task_score": task_score}
+        return obs, float(reward), done, {"task_score": safe_task_score}
 
     def _grade_task(self, action: AMLAction) -> float:
         cmd = action.command
@@ -209,7 +213,4 @@ class AMLEnv(Environment):
                     penalty = max(0, len(actual) - len(target_chain)) * 0.1
                     score = max(0.0, raw_score - penalty)
                     
-        return max(0.01, min(0.99, float(score)))
-
-    def state(self) -> Dict[str, Any]: 
-        return {"step": self.step_count}
+        return score
