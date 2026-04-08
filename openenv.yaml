@@ -4,12 +4,12 @@ description: A Tier 1 Anti-Money Laundering (AML) alert investigation environmen
 action_model: models.AMLAction
 observation_model: models.AMLObservation
 tasks:
-  - name: false_positive_sanctions
+  - id: false_positive_sanctions
     description: Investigate a name-match alert against a sanctions list and determine it is a false positive based on DOB and location.
     difficulty: easy
-  - name: detect_structuring
+  - id: detect_structuring
     description: Investigate an unusual velocity alert and identify cash deposits engineered to avoid the $10,000 reporting threshold.
     difficulty: medium
-  - name: shell_company_layering
+  - id: shell_company_layering
     description: Trace a high-value international wire transfer through multiple shell accounts to identify all complicit entities.
     difficulty: hard
