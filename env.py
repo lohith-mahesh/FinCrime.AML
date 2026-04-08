@@ -163,6 +163,7 @@ class AMLEnv(Environment):
         cmd = action.command
         cat = action.violation_category
         gt = self.db_ground_truth.get(self.active_task, {})
+        score = 0.0
         
         if self.active_task == "false_positive_sanctions":
             target = gt.get("target")
@@ -176,29 +177,25 @@ class AMLEnv(Environment):
             
             if target in self.queried_accounts and has_name_queried and has_dob_verified:
                 if outcome == "FALSE_POSITIVE" and cmd == "clear_alert" and cat == ViolationCategory.FALSE_POSITIVE:
-                    return 1.0
+                    score = 1.0
                 elif outcome == "SANCTIONS_MATCH" and cmd == "escalate_alert" and cat == ViolationCategory.SANCTIONS_MATCH:
-                    return 1.0
-            return 0.0
+                    score = 1.0
             
-        if self.active_task == "detect_structuring":
+        elif self.active_task == "detect_structuring":
             target = gt.get("target")
             evasion_dates = gt.get("evasion_dates", [])
             
             if cmd == "escalate_alert" and cat == ViolationCategory.STRUCTURING:
-                if target not in self.queried_transactions:
-                    return 0.0
-                
-                dates_found = sum(1 for d in evasion_dates if d in (action.rationale or ""))
-                
-                if target == action.account_id or target in action.complicit_account_ids:
-                    if dates_found >= 2:
-                        return 1.0
-                    return 0.5 
-                return 0.0
-            return 0.0
+                if target in self.queried_transactions:
+                    dates_found = sum(1 for d in evasion_dates if d in (action.rationale or ""))
+                    
+                    if target == action.account_id or target in action.complicit_account_ids:
+                        if dates_found >= 2:
+                            score = 1.0
+                        else:
+                            score = 0.5 
             
-        if self.active_task == "shell_company_layering":
+        elif self.active_task == "shell_company_layering":
             if cmd == "escalate_alert" and cat == ViolationCategory.LAYERING:
                 actual = set(action.complicit_account_ids or [])
                 if action.account_id:
@@ -207,14 +204,12 @@ class AMLEnv(Environment):
                 target_chain = set(gt.get("chain", []))
                 intersection = target_chain.intersection(actual)
                 
-                if not intersection:
-                    return 0.0
+                if intersection:
+                    raw_score = float(len(intersection)) / len(target_chain)
+                    penalty = max(0, len(actual) - len(target_chain)) * 0.1
+                    score = max(0.0, raw_score - penalty)
                     
-                score = float(len(intersection)) / len(target_chain)
-                penalty = max(0, len(actual) - len(target_chain)) * 0.1
-                return max(0.0, score - penalty)
-                
-        return 0.0
+        return max(0.01, min(0.99, float(score)))
 
     def state(self) -> Dict[str, Any]: 
         return {"step": self.step_count}
