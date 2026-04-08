@@ -8,30 +8,11 @@ from openenv.core.env_server import create_fastapi_app
 from models import AMLAction, AMLObservation, AMLReward
 from env import AMLEnv
 
-TASKS = [
-    {
-        "id": "false_positive_sanctions",
-        "name": "Sanctions Resolution",
-        "difficulty": "easy"
-    },
-    {
-        "id": "detect_structuring",
-        "name": "Structuring Detection",
-        "difficulty": "medium"
-    },
-    {
-        "id": "shell_company_layering",
-        "name": "Shell Company Layering",
-        "difficulty": "hard"
-    }
-]
-
 app = create_fastapi_app(
     AMLEnv, 
     AMLAction, 
     AMLObservation, 
-    max_concurrent_envs=1,
-    tasks=TASKS
+    max_concurrent_envs=1
 )
 
 def main():
