@@ -71,7 +71,7 @@ class AMLEnv(Environment):
         reward = -0.05
         done = False
         db_resp = ""
-        task_score = 0.01
+        task_score = 0.0
         
         sig = f"{action.command}_{action.account_id}_{action.search_name}_{action.page}"
         gt = self.db_ground_truth.get(self.active_task, {})
@@ -147,7 +147,7 @@ class AMLEnv(Environment):
 
         if self.step_count >= 15:
             done = True
-            if task_score == 0.01:
+            if task_score == 0.0:
                 task_score = self._grade_task(action)
 
         safe_task_score = max(0.01, min(0.99, float(task_score)))
