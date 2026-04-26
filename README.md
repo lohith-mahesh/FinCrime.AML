@@ -1,79 +1,69 @@
-# AML FinCrime Investigator: The Distributed Ledger Firing Range
+# AML FinCrime Investigator: A Generative Adversarial RL Firing Range
 
-## The Narrative: Chasing the Digital Ghost
-In the high-stakes world of Anti-Money Laundering (AML), the investigator is always one step behind. Money does not just sit in accounts; it moves with the speed of a fiber-optic cable, fragmenting into a thousand "smurfed" deposits and vanishing into shell companies faster than a human can file a Suspicious Activity Report (SAR). Traditional AI models are often static, trained on spreadsheets that represent the past. This project introduces a dynamic firing range where the investigator (the Agent) must outmaneuver an active adversary (The Launderer) across a simulated enterprise banking stack.
+## The Executive Summary
+Anti-Money Laundering (AML) investigation is a high-stakes cat and mouse game where the "mouse" evolves in real-time. This project presents a specialized Reinforcement Learning (RL) environment designed to train Large Language Models (LLMs) to act as Lead AML Investigators. Unlike static benchmarks, this environment utilizes a Generative Adversarial Financial Data (GAFD) engine where a 72B parameter "Launderer" dynamically generates obfuscated transaction ledgers to evade the investigator.
 
----
+## The National Security Mandate: Why We Simulate
+Financial institutions operate under a paradox: they possess the data necessary to train world-class investigative AI, but national security protocols and privacy laws (BSA, GDPR, and FinCEN mandates) prevent the release of this data. Sharing real-world AML patterns could expose systemic vulnerabilities to state actors or criminal syndicates. 
 
-## Why Simulation? The National Security Mandate
-One of the greatest hurdles in financial AI development is the "Data Desert." Financial institutions operate under strict national security protocols and privacy laws such as the Bank Secrecy Act (BSA) and GDPR. Releasing real-world transaction data to the public is a national security risk as it could expose the structural vulnerabilities of the global financial system or the Personally Identifiable Information (PII) of millions. 
-
-To bridge this gap, this environment utilizes a **Generative Adversarial Data Framework**. By using a 72B parameter model to simulate the "Launderer," we create high-fidelity, synthetic financial networks that mimic the complexity of real-world crime without compromising institutional integrity or security.
+This project solves the "Data Desert" by providing a high-fidelity synthetic firing range. By simulating the enterprise banking stack through a Pydantic-validated environment, we allow for the development of expert investigative weights without ever touching sensitive PII (Personally Identifiable Information) or institutional secrets.
 
 ---
 
-## Technical Architecture
+## Technical Specifications
 
-### 1. The Environment (AMLEnv)
-Built on the `openenv-core` framework, the environment simulates a Tier 1 banking ecosystem:
-* **Core Banking:** Manages account records and transaction ledgers.
-* **Global Sanctions:** A database for name-match verification.
-* **HR Portal:** The administrative layer for escalating or clearing alerts.
-* **The Scratchpad:** An internal memory tool allowing the agent to "save" and "read" evidence, mitigating the limitations of a model's context window.
+### 1. Environment Architecture (The Stack)
+The agent operates across three distinct enterprise application mocks, accessible via a unified API:
+* **Core Banking (CB):** Handles `query_account`, `query_transactions`, and `freeze_account`.
+* **Global Sanctions (GS):** Provides `search_sanctions` for name-match verification.
+* **HR Portal (HR):** The final endpoint for `escalate_alert` or `clear_alert`.
+* **The Scratchpad:** A persistence layer allowing the agent to utilize `save_to_notes` and `read_notes` to bypass context window drift during long-chain investigations.
 
-### 2. The Adversary (The Launderer)
-The data is not static. A Qwen-2.5-72B model acts as a live adversary, generating obfuscated transaction chains and responding to the agent's investigation success by increasing the complexity of the "layering" nodes in real-time.
-
-### 3. The Multi-Persona Judge
-Validation is performed by an LLM-based judge that evaluates the agent's rationale from three distinct perspectives: a Compliance Analyst, an AML Director, and a Federal Regulator. This ensures that the agent's success is measured by the quality of its legal reasoning, not just by its ability to guess the right outcome.
-
----
-
-## Performance Analysis: The "Intelligence Gap"
-
-### The 70B Baseline: The "Stuck" Investigator
-Our baseline evaluation utilized a Llama-3.3-70B-Instruct model in a zero-shot configuration. Despite its high parameter count and general reasoning capabilities, it consistently hit a "performance ceiling":
-* **The Infinite Loop:** Without specialized training, the 70B model failed to effectively use the internal scratchpad. This caused it to lose track of which accounts it had already queried, leading to repetitive "Duplicate Query" penalties of -0.15 to -0.20 per step.
-* **Contextual Amnesia:** In the "Hard" layering task, the 70B model often identified the first two nodes of a chain but "forgot" the trail before reaching the final shell company, resulting in premature and incorrect escalations.
-* **Tool Misalignment:** The model frequently attempted to use `search_sanctions` within the `core_banking` application, triggering constant "Access Denied" errors and reward drains.
-
-### The 8B Improved: The Specialized Agent
-By applying Proximal Policy Optimization (PPO) to a Llama-3-8B model, we observed a massive shift in investigative heuristic:
-* **Heuristic Learning:** The 8B model learned that `save_to_notes` is a mandatory survival mechanic for long-chain investigations.
-* **Reward Shaping Success:** The model learned to minimize "Step Penalties" by becoming more efficient, often solving the "Easy" sanctions task in under 4 steps by immediately cross-referencing Date of Birth (DOB) strings.
-* **Adversarial Resilience:** Even as the "Launderer" increased obfuscation, the trained 8B model maintained a steady upward reward trend by strictly following the "follow the money" dead-end rule.
+### 2. The Reward Function: Forensic Shaping
+The reward signal is designed to discourage "hallucinatory investigative drift":
+* **Goal Reward:** Up to +1.0 for perfect identification of shell company chains or structuring dates.
+* **Efficiency Penalty:** -0.05 per step to encourage rapid resolution.
+* **Logic Penalty:** -0.10 for attempting to use tools in the wrong application (e.g., searching sanctions in Core Banking).
+* **The Loop Breaker:** -0.15 for duplicate queries, preventing the common LLM failure mode of infinite query loops.
 
 ---
 
-## Evidence of Improvement
+## Comparative Analysis: 70B Zero-Shot vs. 8B Trained
 
-### Baseline Evaluation (Untrained)
+### The Baseline: Llama-3.3-70B (Untrained)
+During evaluation, the untrained 70B model exhibited "Zero-Shot Myopia." While it could interpret the `SYSTEM_PROMPT` effectively, it failed at the **state-machine logic** of a multi-step investigation. 
+* **The Loop Trap:** The 70B model often became stuck in repetitive `query_transactions` loops, failing to recognize that it already possessed the necessary evidence.
+* **Evidence Attrition:** Without the trained heuristic to use the **Scratchpad**, the 70B model would "forget" account IDs from Step 2 by the time it reached Step 8.
+
 ![Untrained Baseline Results](untrained_reward_curve.jpeg)
 
-### PPO Training Progress
+### The Improvement: Llama-3-8B (PPO-Tuned)
+By applying Proximal Policy Optimization (PPO), the 8B model developed a specialized investigative heuristic. 
+* **Heuristic Discovery:** The model learned that the highest reward density came from tracing wire transfers to their "dead end" rather than escalating at the first suspicious node.
+* **Tool Fluency:** The 8B model achieved near-perfect compliance with the Enterprise App mapping, eliminating the "Access Denied" penalties that tanked the baseline scores.
+
 ![Trained PPO Progress](training_reward_curves.png)
 
 ---
 
-## Technical Shortcomings
-While this system represents a significant leap in AML simulation, it is not without limitations:
-* **Schema Rigidity:** The agent is currently restricted to a fixed Pydantic JSON schema, which may not capture the nuanced "free-form" narratives required in real-world SAR filings.
-* **Inference Latency:** Using a 72B parameter adversary model introduces significant latency during data generation, limiting the speed at which the environment can cycle through training episodes.
-* **Edge Case Hallucinations:** In extremely deep layering chains (5+ nodes), the agent can still occasionally hallucinate account IDs that were never returned by the core banking API.
+## Practicality and Niche Value
+This project is not just a hackathon entry: it is a blueprint for practical banking deployment. 
+* **API-Ready:** The environment is designed to be implementable with any standard RESTful banking API. A financial institution could swap the `data_generator.py` for a real-world (anonymized) data stream to turn this into a production-grade investigator.
+* **The "Launderer" Innovation:** By including a live adversary that adapts to the agent, we solve the "stale model" problem where AI becomes obsolete as soon as criminals change their patterns.
 
----
+## Shortcomings and Real-World Constraints
+* **Non-Deterministic Adversary:** Because the Launderer is a 72B LLM, the environment difficulty can vary slightly between episodes, introducing noise into the training signal.
+* **Schema Constraints:** The current agent is restricted to JSON outputs, which limits its ability to provide the nuanced, prose-heavy "Narrative of Suspicious Activity" required by federal regulators.
+* **Token Latency:** High-fidelity data generation introduces significant latency per step, making real-time training on consumer hardware difficult.
 
-## Installation and Execution
+## Installation
 
-Ensure you have the required enterprise dependencies installed:
-`pip install -r requirements.txt`
+```bash
+# Clone the repository
+git clone [https://github.com/user/aml-fincrime-investigator](https://github.com/user/aml-fincrime-investigator)
 
-To launch the environment server:
-`uvicorn server.app:app --host 0.0.0.0 --port 7860`
+# Install enterprise dependencies
+pip install -r requirements.txt
 
-To run the investigative agent:
-`python inference.py`
-
----
-
-**This project was developed for the Meta x Hugging Face x PyTorch OpenEnv Hackathon 2026.**
+# Launch the investigation server
+uvicorn server.app:app --host 0.0.0.0 --port 7860
