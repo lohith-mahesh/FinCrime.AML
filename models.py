@@ -1,23 +1,30 @@
 from enum import Enum
-from typing import List, Optional
 from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
+
+class EnterpriseApp(str, Enum):
+    CORE_BANKING = "core_banking"
+    GLOBAL_SANCTIONS = "global_sanctions"
+    HR_PORTAL = "hr_portal"
 
 class ViolationCategory(str, Enum):
+    NONE = "NONE"
+    FALSE_POSITIVE = "FALSE_POSITIVE"
+    SANCTIONS_MATCH = "SANCTIONS_MATCH"
     STRUCTURING = "STRUCTURING"
     LAYERING = "LAYERING"
-    SANCTIONS_MATCH = "SANCTIONS_MATCH"
-    FALSE_POSITIVE = "FALSE_POSITIVE"
-    NONE = "NONE"
 
 class AMLAction(BaseModel):
-    command: str
-    account_id: Optional[str] = None
-    search_name: Optional[str] = None
-    violation_category: ViolationCategory = Field(default=ViolationCategory.NONE)
-    complicit_account_ids: List[str] = Field(default_factory=list)
-    verified_dob: Optional[str] = Field(default=None, description="Extracted DOB from account query (YYYY-MM-DD) if applicable.")
-    rationale: Optional[str] = Field(default="No rationale provided")
-    page: int = Field(default=1)
+    target_app: EnterpriseApp = Field(..., description="The enterprise application to query.")
+    command: str = Field(..., description="The specific command to execute.")
+    account_id: Optional[str] = Field(None, description="The target account ID, if applicable.")
+    search_name: Optional[str] = Field(None, description="The name to search in the sanctions database.")
+    page: int = Field(1, description="Pagination index for transaction queries.")
+    violation_category: ViolationCategory = Field(ViolationCategory.NONE, description="The category of the violation if escalating/clearing.")
+    verified_dob: Optional[str] = Field(None, description="The verified Date of Birth for sanctions clearing.")
+    complicit_account_ids: List[str] = Field(default_factory=list, description="A list of complicit account IDs if escalating a network.")
+    rationale: Optional[str] = Field("No rationale provided", description="The justification for the action.")
+    note_content: Optional[str] = Field(None, description="The text content to save to the internal scratchpad.")
 
 class AMLObservation(BaseModel):
     alert_id: str
@@ -25,9 +32,6 @@ class AMLObservation(BaseModel):
     command_status: str
     database_response: str
     documented_evidence: List[str]
+    scratchpad: List[str]
     reward: float
     done: bool
-
-class AMLReward(BaseModel):
-    reward: float
-    info: Optional[dict] = {}
