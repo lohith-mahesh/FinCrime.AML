@@ -1,97 +1,79 @@
-# FinCrime AML Investigator: A Reinforcement Learning Benchmark
+# AML FinCrime Investigator: The Distributed Ledger Firing Range
 
-## Overview
-The FinCrime Anti-Money Laundering (AML) Investigator is a highly rigorous, multi-step Reinforcement Learning (RL) benchmark designed to evaluate the deductive reasoning, context-window management, and tool-use capabilities of frontier Large Language Models (LLMs). 
+## The Narrative: Chasing the Digital Ghost
+In the high-stakes world of Anti-Money Laundering (AML), the investigator is always one step behind. Money does not just sit in accounts; it moves with the speed of a fiber-optic cable, fragmenting into a thousand "smurfed" deposits and vanishing into shell companies faster than a human can file a Suspicious Activity Report (SAR). Traditional AI models are often static, trained on spreadsheets that represent the past. This project introduces a dynamic firing range where the investigator (the Agent) must outmaneuver an active adversary (The Launderer) across a simulated enterprise banking stack.
 
-Unlike standard QA benchmarks, this environment simulates a dynamic, adversarial financial database. Agents must navigate realistic transactional ledgers, isolate illicit financial behavior obfuscated by high-volume baseline noise, and escalate alerts using a strictly typed JSON schema. The environment actively punishes reward-farming, blind guessing, and hallucinated queries.
+---
 
-## Environment Architecture
+## Why Simulation? The National Security Mandate
+One of the greatest hurdles in financial AI development is the "Data Desert." Financial institutions operate under strict national security protocols and privacy laws such as the Bank Secrecy Act (BSA) and GDPR. Releasing real-world transaction data to the public is a national security risk as it could expose the structural vulnerabilities of the global financial system or the Personally Identifiable Information (PII) of millions. 
 
-The environment operates on a standard RL continuous loop (`reset`, `step`) and is strictly deterministic for baseline reproducibility while supporting dynamic generation across concurrent sessions.
+To bridge this gap, this environment utilizes a **Generative Adversarial Data Framework**. By using a 72B parameter model to simulate the "Launderer," we create high-fidelity, synthetic financial networks that mimic the complexity of real-world crime without compromising institutional integrity or security.
 
-### State Generation (In-Memory)
-To prevent Docker file I/O concurrency crashes during parallelized evaluation, the environment relies on dynamic, in-memory graph generation. Upon calling `env.reset()`, the system generates a synthesized financial network of 200 nodes (accounts) and thousands of transactions. The topology is controlled via a task-specific seed hash to ensure deterministic evaluation by automated judges.
+---
 
-### Action Space
-Agents interact with the environment by outputting strictly formatted JSON objects matching the following schema:
-* `command` (str): The specific tool to invoke (`query_account`, `query_transactions`, `search_sanctions`, `escalate_alert`, `clear_alert`).
-* `account_id` (str, optional): The target ID for ledger or profile queries.
-* `search_name` (str, optional): The target name for database string-matching.
-* `violation_category` (str): The final classification (`STRUCTURING`, `LAYERING`, `SANCTIONS_MATCH`, `FALSE_POSITIVE`, `NONE`).
-* `complicit_account_ids` (List[str]): Downstream nodes involved in network-based crimes.
-* `verified_dob` (str, optional): Extracted proof for identity verification tasks.
-* `rationale` (str): The investigative proof and reasoning.
-* `page` (int): Pagination control for iterating through high-volume ledgers.
+## Technical Architecture
 
-### Observation Space
-At each step, the agent receives an observation mapping containing:
-* `alert_trigger`: The initial breadcrumb (e.g., "Alert: ACC-1030 High-Value Wires").
-* `database_response`: The simulated terminal output of the query (paginated ledger rows, JSON profiles, or match lists).
-* `documented_evidence`: An internal working-memory array of successfully queried nodes.
-* `reward`: The step-specific continuous reward signal.
-* `done`: Boolean termination flag.
+### 1. The Environment (AMLEnv)
+Built on the `openenv-core` framework, the environment simulates a Tier 1 banking ecosystem:
+* **Core Banking:** Manages account records and transaction ledgers.
+* **Global Sanctions:** A database for name-match verification.
+* **HR Portal:** The administrative layer for escalating or clearing alerts.
+* **The Scratchpad:** An internal memory tool allowing the agent to "save" and "read" evidence, mitigating the limitations of a model's context window.
 
-## Task Definitions and Grading Mechanics
+### 2. The Adversary (The Launderer)
+The data is not static. A Qwen-2.5-72B model acts as a live adversary, generating obfuscated transaction chains and responding to the agent's investigation success by increasing the complexity of the "layering" nodes in real-time.
 
-The benchmark evaluates models across three distinct financial crime typologies. Each task utilizes a specialized grader designed to neutralize common LLM exploitation strategies.
+### 3. The Multi-Persona Judge
+Validation is performed by an LLM-based judge that evaluates the agent's rationale from three distinct perspectives: a Compliance Analyst, an AML Director, and a Federal Regulator. This ensures that the agent's success is measured by the quality of its legal reasoning, not just by its ability to guess the right outcome.
 
-### 1. False Positive Sanctions Resolution (Difficulty: Easy)
-* **Objective:** Differentiate between true sanctions matches and false positives based on secondary identity markers (Date of Birth / Country).
-* **Challenge:** The agent must cross-reference account profile data against the sanctions registry. 
-* **Type-Safe Grading:** The grader bypasses brittle string-matching on the rationale and instead demands the agent autonomously populate a dedicated `verified_dob` Pydantic field with the extracted `YYYY-MM-DD` string, testing the model's ability to map unstructured data to strict schema requirements.
+---
 
-### 2. Detect Structuring / Smurfing (Difficulty: Medium)
-* **Objective:** Identify multiple cash deposits designed to evade regulatory reporting thresholds.
-* **Challenge:** Illicit transactions are chronologically buried inside a high-volume "haystack" of overlapping baseline noise (payroll, utility payments). The agent must actively utilize the `page` parameter to traverse the timeline.
-* **Strict Grading:** It is insufficient to merely identify the account. The agent must explicitly extract the exact dates of the structuring deposits and include them in the `rationale` string. Failure to provide explicit date proof results in a 50% score penalty, preventing blind guessing.
+## Performance Analysis: The "Intelligence Gap"
 
-### 3. Shell Company Layering (Difficulty: Hard)
-* **Objective:** Trace illicit funds moving from a source account through multiple mid-layer shell entities to a final destination.
-* **Challenge:** The agent must differentiate between routine `vendor_payment` noise and illicit `wire_transfer` movements, sequentially querying the downstream nodes to map the full graph.
-* **Fractional Intersection Grading:** The task utilizes a mathematically rigorous intersection-over-union metric. The agent is scored based on the precise subset of the network it correctly identifies. To prevent array-spamming (reward hacking), the grader applies a strict penalty (`-0.10`) for every incorrect or hallucinated account ID included in the submission.
+### The 70B Baseline: The "Stuck" Investigator
+Our baseline evaluation utilized a Llama-3.3-70B-Instruct model in a zero-shot configuration. Despite its high parameter count and general reasoning capabilities, it consistently hit a "performance ceiling":
+* **The Infinite Loop:** Without specialized training, the 70B model failed to effectively use the internal scratchpad. This caused it to lose track of which accounts it had already queried, leading to repetitive "Duplicate Query" penalties of -0.15 to -0.20 per step.
+* **Contextual Amnesia:** In the "Hard" layering task, the 70B model often identified the first two nodes of a chain but "forgot" the trail before reaching the final shell company, resulting in premature and incorrect escalations.
+* **Tool Misalignment:** The model frequently attempted to use `search_sanctions` within the `core_banking` application, triggering constant "Access Denied" errors and reward drains.
 
-## Adversarial Safeguards
+### The 8B Improved: The Specialized Agent
+By applying Proximal Policy Optimization (PPO) to a Llama-3-8B model, we observed a massive shift in investigative heuristic:
+* **Heuristic Learning:** The 8B model learned that `save_to_notes` is a mandatory survival mechanic for long-chain investigations.
+* **Reward Shaping Success:** The model learned to minimize "Step Penalties" by becoming more efficient, often solving the "Easy" sanctions task in under 4 steps by immediately cross-referencing Date of Birth (DOB) strings.
+* **Adversarial Resilience:** Even as the "Launderer" increased obfuscation, the trained 8B model maintained a steady upward reward trend by strictly following the "follow the money" dead-end rule.
 
-This benchmark is hardened against common RL optimization exploits:
+---
 
-1. **Positive Circuit Mitigation (Anti-Farming):** Breadcrumb rewards (`+0.10` / `+0.15`) are strictly locked to the critical path. Agents cannot artificially inflate their score by indiscriminately querying unrelated nodes in the database.
-2. **Chronological Obfuscation:** Unlike naive ledgers that sort by transaction amount (which inadvertently pins evidence to Page 1), this environment sorts transactions chronologically descending. Illicit activity is mathematically guaranteed to be surrounded by overlapping benign transactions, enforcing genuine context-window utilization.
-3. **Amnesia Penalties:** Duplicate queries to the same node invoke a softened penalty (`-0.15`). This prevents fatal score wipes from minor LLM amnesia while still effectively discouraging infinite looping behavior.
-4. **Pydantic Null-Catching:** The environment interface includes sanitization layers to catch and convert explicit `null` outputs into safe default strings, preventing strict JSON parsers from triggering false-negative container crashes.
+## Evidence of Improvement
 
-## Baseline Evaluation Scores
+### Baseline Evaluation (Untrained)
+![Untrained Baseline Results](untrained_reward_curve.jpeg)
 
-Using the `llama-3.3-70b-versatile` model as our baseline agent, the environment yielded the following reproducible scores across our deterministic evaluation seeds:
-* **Task 1: False Positive Sanctions Resolution (Easy):** 1.000 (Success in 3 steps)
-* **Task 2: Detect Structuring (Medium):** 1.000 (Success in 15 steps)
-* **Task 3: Shell Company Layering (Hard):** 0.750 (Partial success in 8 steps)
+### PPO Training Progress
+![Trained PPO Progress](training_reward_curves.png)
+
+---
+
+## Technical Shortcomings
+While this system represents a significant leap in AML simulation, it is not without limitations:
+* **Schema Rigidity:** The agent is currently restricted to a fixed Pydantic JSON schema, which may not capture the nuanced "free-form" narratives required in real-world SAR filings.
+* **Inference Latency:** Using a 72B parameter adversary model introduces significant latency during data generation, limiting the speed at which the environment can cycle through training episodes.
+* **Edge Case Hallucinations:** In extremely deep layering chains (5+ nodes), the agent can still occasionally hallucinate account IDs that were never returned by the core banking API.
+
+---
 
 ## Installation and Execution
 
-Ensure Docker and Python 3.10+ are installed. 
+Ensure you have the required enterprise dependencies installed:
+`pip install -r requirements.txt`
 
-### Local Baseline Evaluation
-To run the evaluation script locally using the optimized baseline agent:
-```bash
-pip install -r requirements.txt
-export HF_TOKEN="your_api_key"
-export AML_TASK="shell_company_layering" # Options: detect_structuring, false_positive_sanctions
-python3 inference.py
-```
+To launch the environment server:
+`uvicorn server.app:app --host 0.0.0.0 --port 7860`
 
-### Docker Execution
-To build and run the environment locally using Docker:
-```bash
-docker build -t fincrime-aml .
-docker run -it -e HF_TOKEN="your_api_key" fincrime-aml
-```
+To run the investigative agent:
+`python inference.py`
 
-### Automated Submission Validation
-To test container compatibility and parser compliance prior to final evaluation:
-```bash
-chmod +x validate-submission.sh
-./validate-submission.sh https://<YOUR-SPACE-NAME>.hf.space .
-```
+---
 
-### Logging and Parsing Compatibility
-Standard output logging adheres strictly to benchmark parser expectations. Action strings are converted from JSON to safe functional formats (e.g., query_transactions('ACC-1030')), and final scores are consistently formatted to three decimal places (score=1.000) to ensure 100% compatibility with regex-based automated judges.
+**This project was developed for the Meta x Hugging Face x PyTorch OpenEnv Hackathon 2026.**
