@@ -3,3 +3,11 @@ openenv-core
 openai
 fastapi
 uvicorn
+trl
+peft
+transformers
+accelerate
+bitsandbytes
+matplotlib
+pandas
+numpy
