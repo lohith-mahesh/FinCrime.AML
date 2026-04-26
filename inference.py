@@ -3,7 +3,7 @@ import os
 import json
 import time
 from openai import OpenAI
-from models import AMLAction, ViolationCategory
+from models import AMLAction, ViolationCategory, EnterpriseApp
 from env import AMLEnv
 
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY") or os.getenv("API_KEY")
@@ -13,7 +13,16 @@ MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
 TASKS = ["false_positive_sanctions", "detect_structuring", "shell_company_layering"]
 
 SYSTEM_PROMPT = """
-You are a Lead AML Investigator. Your goal is to solve the alert efficiently.
+You are a Lead AML Investigator operating across multiple enterprise applications. Your goal is to solve the alert efficiently.
+
+### ENTERPRISE APPLICATIONS:
+You must specify the correct 'target_app' for your commands:
+- "core_banking": Use this app for 'query_account', 'query_transactions', 'save_to_notes', and 'read_notes'.
+- "global_sanctions": Use this app for 'search_sanctions'.
+- "hr_portal": Use this app for 'escalate_alert' and 'clear_alert'.
+
+### SCRATCHPAD MEMORY:
+Your context window is limited. If you find important evidence (like shell company IDs, dates, or wire amounts) that you need to remember, you MUST use the 'save_to_notes' command and put the data in the 'note_content' field. You can retrieve these anytime with 'read_notes'.
 
 ### GETTING STARTED:
 Look at the 'alert_trigger' to find the target Account ID. Do NOT query the alert_id itself.
@@ -23,18 +32,20 @@ Look at the 'alert_trigger' to find the target Account ID. Do NOT query the aler
 2. LAYERING: Trace funds through the network. Follow large 'wire_transfer' transactions. When you find an account receiving a wire, you MUST `query_transactions` on that new account to see where they forward the money. Keep following the money. You have NOT finished the trace until you find a final destination account that receives a wire but does NOT send any wire transfers out. Do NOT escalate until you hit this dead end. 'escalate_alert' with category 'LAYERING' and list EVERY single account in the chain in 'complicit_account_ids'.
 3. SANCTIONS ALERTS: For name-match alerts, 'query_account' to get the customer's full Name and DOB. Then 'search_sanctions' using that exact name. If it's a false positive, 'clear_alert' with 'FALSE_POSITIVE'. If it IS a match, 'escalate_alert' with 'SANCTIONS_MATCH'. You MUST populate the 'verified_dob' field with the account holder's DOB (YYYY-MM-DD).
 
-IMPORTANT: Transactions are sorted chronologically by date. If a query returns multiple pages, you MUST use the 'page' parameter to scan through the history until you find the evidence. Stop and ESCALATE or CLEAR only when you have definitive proof.
+IMPORTANT: Transactions are sorted chronologically by date. If a query returns multiple pages, you MUST use the 'page' parameter to scan through the history until you find the evidence. Stop and ESCALATE or CLEAR only when you have definitive proof. If an app is down (503 error), retry or check another source.
 
 ### SCHEMA:
 {
-  "command": "query_account" | "query_transactions" | "search_sanctions" | "escalate_alert" | "clear_alert",
+  "target_app": "core_banking" | "global_sanctions" | "hr_portal",
+  "command": "query_account" | "query_transactions" | "search_sanctions" | "escalate_alert" | "clear_alert" | "save_to_notes" | "read_notes",
   "account_id": "string",
   "search_name": "string or null",
   "violation_category": "STRUCTURING" | "LAYERING" | "SANCTIONS_MATCH" | "FALSE_POSITIVE" | "NONE",
   "complicit_account_ids": ["string"],
   "verified_dob": "string (YYYY-MM-DD) or null",
   "rationale": "string",
-  "page": "integer (default 1)"
+  "page": "integer (default 1)",
+  "note_content": "string or null"
 }
 """
 
@@ -85,6 +96,10 @@ def get_model_action(client, step, last_obs, history) -> AMLAction:
                 data["page"] = 1
             if data.get("rationale") is None:
                 data["rationale"] = "No rationale provided"
+            if data.get("target_app") is None:
+                data["target_app"] = "core_banking"
+            if data.get("note_content") is None:
+                data["note_content"] = None
                 
             return AMLAction(**data)
         except Exception as e:
@@ -96,6 +111,7 @@ def get_model_action(client, step, last_obs, history) -> AMLAction:
             continue
             
     return AMLAction(
+        target_app=EnterpriseApp.CORE_BANKING,
         command="query_account", 
         account_id="ERROR", 
         rationale=f"Exception: {last_error[:200]}", 
@@ -115,7 +131,7 @@ async def main():
         log_start(task_name, "aml_fincrime_investigator", MODEL_NAME)
         
         try:
-            obs = env.reset(task_id=task_name)
+            obs = env.reset(task_id=task_name, live_adversary=True)
             for step in range(1, 16):
                 action = get_model_action(client, step, obs.model_dump_json(), history)
                 obs, reward, done, info = env.step(action)
@@ -123,15 +139,20 @@ async def main():
                 rewards.append(reward)
                 steps = step
 
-                target_str = action.account_id or action.search_name or "null"
+                target_str = action.account_id or action.search_name or action.note_content or "null"
+                target_str = (target_str[:20] + '..') if len(target_str) > 20 else target_str
                 action_log_str = f"{action.command}('{target_str}')"
                 
                 err_msg = action.rationale if action.account_id == "ERROR" else None
                 log_step(step, action_log_str, reward, done, err_msg)
                 
                 db_snippet = obs.database_response.replace('\n', ' | ')[:150]
-                target = action.account_id or action.search_name
-                history.append(f"Step {step}: {action.command} on {target} (Page {action.page}) -> Found: {db_snippet}")
+                
+                if isinstance(action.target_app, EnterpriseApp):
+                    app_name = action.target_app.value
+                else:
+                    app_name = str(action.target_app)
+                history.append(f"Step {step}: [{app_name}] {action.command} on {target_str} (Page {action.page}) -> Found: {db_snippet}")
                 
                 if done:
                     final_task_score = info.get("task_score", 0.01)
